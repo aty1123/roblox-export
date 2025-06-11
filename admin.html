@@ -105,23 +105,25 @@
     }
     .login-box {
       width: 100%;
-      max-width: 480px;
+      max-width: 420px;
       background: #1a1a1a;
-      padding: 50px 36px;
+      padding: 40px 32px;
       border-radius: 12px;
       box-shadow: 0 0 30px rgba(0,0,0,0.5);
       text-align: center;
-    }
-    .login-box input {
-      font-size: 18px;
     }
     @media screen and (max-width: 768px) {
       th, td {
         font-size: 14px;
       }
+      .action-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
       .action-bar .group {
         flex-direction: column;
         align-items: stretch;
+        width: 100%;
       }
     }
   </style>
