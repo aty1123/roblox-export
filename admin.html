@@ -1,0 +1,124 @@
+// ✅ 관리자 UI 전체 구현 코드 (/admin)
+
+const express = require("express");
+const admin = require("firebase-admin");
+const app = express();
+
+app.use(express.json());
+
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  }),
+  databaseURL: "https://roblox-backup-default-rtdb.asia-southeast1.firebasedatabase.app/",
+});
+
+const db = admin.database();
+const SECRET_KEY = "aty1123-super-very-ultra-secret-key-20051123";
+
+// ✅ 로그인용 HTML 렌더
+app.get("/admin", (req, res) => {
+  res.send(`
+  <html>
+    <head>
+      <title>Admin Login</title>
+      <style>
+        body { font-family: sans-serif; padding: 50px; text-align: center; background: #f9f9f9; }
+        input { padding: 10px; font-size: 16px; width: 300px; }
+        button { padding: 10px 20px; font-size: 16px; }
+      </style>
+    </head>
+    <body>
+      <h1>🔐 관리자 로그인</h1>
+      <input id="password" type="password" placeholder="비밀번호 입력" />
+      <br><br>
+      <button onclick="login()">로그인</button>
+      <script>
+        function login() {
+          const pw = document.getElementById('password').value;
+          fetch('/admin/data', {
+            headers: { 'Authorization': 'Bearer ' + pw }
+          })
+          .then(res => res.text())
+          .then(html => document.body.innerHTML = html)
+          .catch(() => alert('불러오기 실패'))
+        }
+      </script>
+    </body>
+  </html>
+  `);
+});
+
+// ✅ 실제 데이터 테이블 응답
+app.get("/admin/data", async (req, res) => {
+  const auth = req.headers["authorization"];
+  if (!auth || auth !== `Bearer ${SECRET_KEY}`) {
+    return res.status(401).send("<h2>❌ 인증 실패: 잘못된 비밀번호</h2>");
+  }
+
+  const snapshot = await db.ref("users").once("value");
+  const data = snapshot.val() || {};
+
+  const users = Object.keys(data).map((userId) => ({
+    userId,
+    money: data[userId].money || 0,
+    playtime: data[userId].playtime || 0,
+    username: data[userId].username || "(이름 없음)",
+    updatedAt: data[userId].updatedAt
+      ? new Date(data[userId].updatedAt).toLocaleString()
+      : "N/A",
+  }));
+
+  users.sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
+
+  const html = `
+  <html>
+  <head>
+    <title>Roblox 백업 관리자</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; background: #fff; }
+      h1 { text-align: center; }
+      input { width: 300px; padding: 10px; margin-bottom: 10px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
+      th { background: #333; color: white; }
+      tr:hover { background-color: #f2f2f2; }
+    </style>
+    <script>
+      function filterTable() {
+        const input = document.getElementById('search').value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+          const [id, money, playtime, name, time] = row.children;
+          const text = (id.textContent + name.textContent).toLowerCase();
+          row.style.display = text.includes(input) ? '' : 'none';
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <h1>🗂️ Roblox 백업된 유저 목록</h1>
+    <input id="search" onkeyup="filterTable()" placeholder="User ID 또는 이름 검색" />
+    <table>
+      <thead>
+        <tr><th>User ID</th><th>Money</th><th>Playtime</th><th>Username</th><th>Updated At</th></tr>
+      </thead>
+      <tbody>
+        ${users.map(u => `
+          <tr>
+            <td>${u.userId}</td>
+            <td>${u.money.toLocaleString()}</td>
+            <td>${u.playtime.toLocaleString()}</td>
+            <td>${u.username}</td>
+            <td>${u.updatedAt}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </body>
+  </html>
+  `;
+
+  res.send(html);
+});
