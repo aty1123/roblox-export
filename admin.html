@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자 로그인</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -19,22 +18,22 @@
       min-height: 100vh;
       padding: 20px;
     }
-    .container, .login-box {
+    .container {
       background: #1a1a1a;
       padding: 32px;
       border-radius: 12px;
       box-shadow: 0 0 30px rgba(0,0,0,0.5);
       width: 100%;
-      max-width: 480px;
-      text-align: center;
+      max-width: 1000px;
     }
     h1 {
+      text-align: center;
       color: #ffffff;
       margin-bottom: 24px;
     }
     input {
       width: 100%;
-      padding: 14px;
+      padding: 12px;
       font-size: 16px;
       border: 1px solid #333;
       border-radius: 6px;
@@ -43,7 +42,7 @@
       color: #f0f0f0;
     }
     button {
-      padding: 14px;
+      padding: 12px 24px;
       font-size: 16px;
       font-weight: 600;
       background-color: #444;
@@ -56,96 +55,107 @@
     button:hover {
       background-color: #666;
     }
-    .error-message {
-      margin-top: 12px;
-      color: #ff6666;
-      font-size: 14px;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      overflow-x: auto;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #333;
+      text-align: center;
+    }
+    th {
+      background-color: #111;
+      color: #fff;
+      cursor: pointer;
+    }
+    tr:hover {
+      background-color: #1e1e1e;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .action-buttons button {
+      flex: 1;
+      min-width: 120px;
+    }
+    @media screen and (max-width: 768px) {
+      th, td {
+        padding: 8px;
+        font-size: 14px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="login-box" id="main">
+  <div class="container" id="main">
     <h1>관리자 로그인</h1>
     <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
     <button onclick="login()">로그인</button>
-    <div id="error" class="error-message"></div>
   </div>
 
   <script>
     let currentPassword = "";
+    let sortDirection = 1;
 
-    function login() {
-      const pwInput = document.getElementById("pw");
-      const pw = pwInput.value;
-      const errorDiv = document.getElementById("error");
-      errorDiv.textContent = "";
-
-      if (!pw) {
-        errorDiv.textContent = "비밀번호를 입력해주세요.";
-        return;
-      }
-
+    function login(refresh = false) {
+      const pw = refresh ? currentPassword : document.getElementById("pw").value;
+      if (!pw) return;
       currentPassword = pw;
 
       fetch("/admin/data", {
         headers: { Authorization: "Bearer " + pw },
       })
         .then((res) => {
-          if (!res.ok) throw new Error("인증 실패: 비밀번호를 다시 확인해주세요.");
+          if (!res.ok) throw new Error("인증 실패");
           return res.json();
         })
         .then((data) => {
-          window.localStorage.setItem("auth_token", pw);
-          renderDashboard(data);
-        })
-        .catch((err) => {
-          errorDiv.textContent = err.message;
-        });
-    }
-
-    function renderDashboard(data) {
-      document.body.innerHTML = `
-        <div class="container">
-          <h1>Roblox 유저 목록</h1>
-          <div class="action-buttons">
-            <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
-            <button onclick="login(true)">🔁 새로고침</button>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th onclick="sortTable(0)">User ID</th>
-                <th onclick="sortTable(1)">Money</th>
-                <th onclick="sortTable(2)">Playtime</th>
-                <th onclick="sortTable(3)">Username</th>
-                <th onclick="sortTable(4)">Updated</th>
-              </tr>
-            </thead>
-            <tbody id="rows">
-              ${Object.entries(data).map(([id, u]) => `
+          const container = document.getElementById("main");
+          container.innerHTML = `
+            <h1>Roblox 유저 목록</h1>
+            <div class="action-buttons">
+              <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
+              <button onclick="login(true)">새로고침</button>
+            </div>
+            <table>
+              <thead>
                 <tr>
-                  <td>${id}</td>
-                  <td>${u.money ?? 0}</td>
-                  <td>${u.playtime ?? 0}</td>
-                  <td>${u.username ?? 'Unknown'}</td>
-                  <td>${new Date(u.updatedAt).toLocaleString()}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-          <canvas id="chart" height="200"></canvas>
-        </div>
-      `;
+                  <th onclick="sortTable(0)">User ID</th>
+                  <th onclick="sortTable(1)">Money</th>
+                  <th onclick="sortTable(2)">Playtime</th>
+                  <th onclick="sortTable(3)">Username</th>
+                  <th onclick="sortTable(4)">Updated</th>
+                </tr>
+              </thead>
+              <tbody id="rows">
+                ${Object.entries(data).map(([id, u]) => `
+                  <tr>
+                    <td>${id}</td>
+                    <td>${u.money ?? 0}</td>
+                    <td>${u.playtime ?? 0}</td>
+                    <td>${u.username ?? 'Unknown'}</td>
+                    <td>${new Date(u.updatedAt).toLocaleString()}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          `;
 
-      document.getElementById("search").addEventListener("input", function() {
-        const q = this.value.toLowerCase();
-        document.querySelectorAll("#rows tr").forEach(tr => {
-          const uid = tr.children[0].textContent.toLowerCase();
-          const uname = tr.children[3].textContent.toLowerCase();
-          tr.style.display = uid.includes(q) || uname.includes(q) ? '' : 'none';
-        });
-      });
-
-      drawChart(data);
+          document.getElementById("search").addEventListener("input", function() {
+            const q = this.value.toLowerCase();
+            document.querySelectorAll("#rows tr").forEach(tr => {
+              const uid = tr.children[0].textContent.toLowerCase();
+              const uname = tr.children[3].textContent.toLowerCase();
+              tr.style.display = uid.includes(q) || uname.includes(q) ? '' : 'none';
+            });
+          });
+        })
+        .catch(() => alert("❌ 인증 실패 또는 오류 발생"));
     }
 
     function sortTable(n) {
@@ -153,41 +163,10 @@
       rows.sort((a, b) => {
         const valA = a.cells[n].textContent;
         const valB = b.cells[n].textContent;
-        return valA.localeCompare(valB, undefined, { numeric: true }) * sortDirection;
+        return (valA > valB ? 1 : -1) * sortDirection;
       });
       sortDirection *= -1;
       rows.forEach(row => document.querySelector("#rows").appendChild(row));
-    }
-
-    function drawChart(data) {
-      const ctx = document.getElementById('chart').getContext('2d');
-      const entries = Object.entries(data).filter(([_, u]) => u.money > 0 || u.playtime > 0);
-      const labels = entries.map(([_, u]) => u.username);
-      const values = entries.map(([_, u]) => u.playtime ?? 0);
-
-      if (window.currentChart) window.currentChart.destroy();
-
-      window.currentChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Playtime',
-            data: values,
-            backgroundColor: '#90caf9'
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: '#fff' } }
-          },
-          scales: {
-            x: { ticks: { color: '#fff' } },
-            y: { ticks: { color: '#fff' } }
-          }
-        }
-      });
     }
   </script>
 </body>
