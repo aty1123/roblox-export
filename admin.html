@@ -32,7 +32,7 @@
       color: #ffffff;
       margin-bottom: 24px;
     }
-    input {
+    input, select {
       width: 100%;
       padding: 12px;
       font-size: 16px;
@@ -53,14 +53,11 @@
       cursor: pointer;
       width: 100%;
     }
-    button:hover {
-      background-color: #666;
-    }
+    button:hover { background-color: #666; }
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 24px;
-      overflow-x: auto;
     }
     th, td {
       padding: 12px;
@@ -68,20 +65,15 @@
       text-align: center;
       cursor: pointer;
     }
-    th {
-      background-color: #111;
-      color: #fff;
-    }
-    tr:hover {
-      background-color: #1e1e1e;
-    }
+    th { background-color: #111; color: #fff; }
+    tr:hover { background-color: #1e1e1e; }
     .action-buttons {
       display: flex;
       gap: 10px;
       margin-bottom: 16px;
       flex-wrap: wrap;
     }
-    .action-buttons button {
+    .action-buttons button, .action-buttons select {
       flex: 1;
       min-width: 120px;
     }
@@ -97,10 +89,7 @@
       filter: brightness(200%);
     }
     @media screen and (max-width: 768px) {
-      th, td {
-        padding: 8px;
-        font-size: 14px;
-      }
+      th, td { padding: 8px; font-size: 14px; }
     }
   </style>
 </head>
@@ -114,6 +103,9 @@
   <script>
     let currentPassword = "";
     let sortDirection = 1;
+    let fullData = {};
+    let currentPage = 1;
+    let rowsPerPage = 10;
 
     function login(refresh = false) {
       const pw = refresh ? currentPassword : document.getElementById("pw").value;
@@ -125,81 +117,107 @@
       })
         .then((res) => res.json())
         .then((data) => {
-          const container = document.getElementById("main");
-          container.innerHTML = `
-            <h1><img src='https://cdn-icons-png.flaticon.com/512/1584/1584891.png' class='icon' alt='list'> Roblox 유저 목록</h1>
-            <div class="action-buttons">
-              <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
-              <button onclick="login(true)"><img src='https://cdn-icons-png.flaticon.com/512/545/545680.png' class='icon' alt='refresh'> 새로고침</button>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th onclick="sortTable(0)">User ID</th>
-                  <th onclick="sortTable(1)">Money</th>
-                  <th onclick="sortTable(2)">Playtime</th>
-                  <th onclick="sortTable(3)">Username</th>
-                  <th onclick="sortTable(4)">Updated</th>
-                </tr>
-              </thead>
-              <tbody id="rows">
-                ${Object.entries(data).map(([id, u]) => `
-                  <tr>
-                    <td>${id}</td>
-                    <td>${u.money ?? 0}</td>
-                    <td>${u.playtime ?? 0}</td>
-                    <td>${u.username ?? 'Unknown'}</td>
-                    <td>${new Date(u.updatedAt).toLocaleString()}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-            <canvas id="chart" width="400" height="200"></canvas>
-          `;
-
-          document.getElementById("search").addEventListener("input", function() {
-            const q = this.value.toLowerCase();
-            document.querySelectorAll("#rows tr").forEach(tr => {
-              const uid = tr.children[0].textContent.toLowerCase();
-              const uname = tr.children[3].textContent.toLowerCase();
-              tr.style.display = uid.includes(q) || uname.includes(q) ? '' : 'none';
-            });
-          });
-
-          drawChart(data);
+          fullData = Object.entries(data);
+          renderTable();
         })
         .catch(() => alert("❌ 인증 실패 또는 오류 발생"));
     }
 
-    function sortTable(n) {
-      const rows = Array.from(document.querySelector("#rows").rows);
-      rows.sort((a, b) => {
-        const valA = a.cells[n].textContent;
-        const valB = b.cells[n].textContent;
-        return (valA > valB ? 1 : -1) * sortDirection;
+    function renderTable() {
+      const container = document.getElementById("main");
+      const paginated = fullData.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+      container.innerHTML = `
+        <h1><img src='https://cdn-icons-png.flaticon.com/512/1584/1584891.png' class='icon' alt='list'> Roblox 유저 목록</h1>
+        <div class="action-buttons">
+          <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
+          <select onchange="changeRowsPerPage(this.value)">
+            <option value="10">10개씩 보기</option>
+            <option value="25">25개씩 보기</option>
+            <option value="50">50개씩 보기</option>
+          </select>
+          <button onclick="login(true)"><img src='https://cdn-icons-png.flaticon.com/512/545/545680.png' class='icon' alt='refresh'> 새로고침</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortTable(0)">User ID</th>
+              <th onclick="sortTable(1)">Money</th>
+              <th onclick="sortTable(2)">Playtime</th>
+              <th onclick="sortTable(3)">Username</th>
+              <th onclick="sortTable(4)">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            ${paginated.map(([id, u]) => `
+              <tr>
+                <td>${id}</td>
+                <td>${u.money ?? 0}</td>
+                <td>${u.playtime ?? 0}</td>
+                <td>${u.username ?? 'Unknown'}</td>
+                <td>${new Date(u.updatedAt).toLocaleString()}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="action-buttons">
+          <button onclick="changePage(-1)">이전</button>
+          <button onclick="changePage(1)">다음</button>
+        </div>
+        <canvas id="chart" width="400" height="200"></canvas>
+      `;
+
+      document.getElementById("search").addEventListener("input", function() {
+        const q = this.value.toLowerCase();
+        fullData = Object.entries(fullData.reduce((acc, [id, u]) => {
+          if (id.includes(q) || (u.username && u.username.toLowerCase().includes(q))) acc[id] = u;
+          return acc;
+        }, {}));
+        currentPage = 1;
+        renderTable();
+      });
+
+      drawChart(paginated);
+    }
+
+    function changePage(offset) {
+      currentPage = Math.max(1, currentPage + offset);
+      renderTable();
+    }
+
+    function changeRowsPerPage(n) {
+      rowsPerPage = Number(n);
+      currentPage = 1;
+      renderTable();
+    }
+
+    function sortTable(index) {
+      fullData.sort((a, b) => {
+        const valA = a[1][Object.keys(a[1])[index]] || a[0];
+        const valB = b[1][Object.keys(b[1])[index]] || b[0];
+
+        if (index === 4) return (new Date(a[1].updatedAt) - new Date(b[1].updatedAt)) * sortDirection;
+        if (!isNaN(valA) && !isNaN(valB)) return (valA - valB) * sortDirection;
+        return valA.toString().localeCompare(valB.toString()) * sortDirection;
       });
       sortDirection *= -1;
-      rows.forEach(row => document.querySelector("#rows").appendChild(row));
+      renderTable();
     }
 
     function drawChart(data) {
       const ctx = document.getElementById('chart').getContext('2d');
-      const usernames = Object.values(data).map(u => u.username ?? 'Unknown');
-      const playtimes = Object.values(data).map(u => u.playtime ?? 0);
       new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: usernames,
+          labels: data.map(([_, u]) => u.username || 'Unknown'),
           datasets: [{
             label: 'Playtime',
-            data: playtimes,
+            data: data.map(([_, u]) => u.playtime || 0),
             backgroundColor: '#90caf9'
           }]
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { labels: { color: '#fff' } }
-          },
+          plugins: { legend: { labels: { color: '#fff' } } },
           scales: {
             x: { ticks: { color: '#fff' } },
             y: { ticks: { color: '#fff' } }
