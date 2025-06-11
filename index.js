@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 // 🔐 보안 키
-const SECRET_KEY = "aty1123-super-very-ultra-secret-key-20051123";
+const SECRET_KEY = process.env.API_SECRET_KEY;
 
 // ✅ Firebase 인증 구성
 admin.initializeApp({
