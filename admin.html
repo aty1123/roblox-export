@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>관리자 로그인</title>
+  <title>Roblox 관리자 대시보드</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
@@ -27,19 +27,30 @@
       max-width: 1000px;
     }
     h1 {
-      text-align: center;
       color: #ffffff;
+      text-align: center;
       margin-bottom: 24px;
+      font-size: 24px;
     }
-    input {
+    input, select {
       width: 100%;
       padding: 12px;
       font-size: 16px;
       border: 1px solid #333;
       border-radius: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       background-color: #2a2a2a;
       color: #f0f0f0;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .controls > * {
+      flex: 1;
+      min-width: 150px;
     }
     button {
       padding: 12px;
@@ -54,48 +65,38 @@
     button:hover {
       background-color: #666;
     }
-    .error {
-      color: #ff5e5e;
-      margin-top: 10px;
-      font-size: 14px;
-      text-align: center;
-    }
-    .action-buttons {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 16px;
     }
     th, td {
       padding: 12px;
-      text-align: center;
       border-bottom: 1px solid #333;
+      text-align: center;
     }
     th {
-      background: #111;
+      background-color: #111;
       cursor: pointer;
     }
     tr:hover {
-      background: #1e1e1e;
+      background-color: #1e1e1e;
     }
     .pagination {
       display: flex;
       justify-content: center;
       align-items: center;
-      margin-top: 20px;
       gap: 10px;
+      margin-top: 20px;
     }
-    select {
-      padding: 8px;
-      background-color: #2a2a2a;
-      color: #fff;
-      border-radius: 6px;
-      border: 1px solid #444;
+    .error {
+      color: #ff5e5e;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .loading {
+      color: #ffffff;
+      text-align: center;
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -109,21 +110,20 @@
 
   <script>
     let currentPassword = "";
-    let sortDirection = 1;
-    let fullData = [];
     let currentPage = 1;
-    let itemsPerPage = 10;
+    let rowsPerPage = 10;
+    let allData = [];
 
-    function login(refresh = false) {
-      const pwInput = document.getElementById("pw");
-      const errorDiv = document.getElementById("error");
-      const pw = refresh ? currentPassword : pwInput.value;
+    function login() {
+      const pw = document.getElementById("pw").value;
+      const error = document.getElementById("error");
       if (!pw) {
-        errorDiv.textContent = "비밀번호를 입력해주세요.";
+        error.textContent = "비밀번호를 입력해주세요.";
+        error.className = "error";
         return;
       }
-      errorDiv.textContent = "로그인 중...";
-      currentPassword = pw;
+      error.textContent = "로그인 중...";
+      error.className = "loading";
 
       fetch("/admin/data", {
         headers: { Authorization: "Bearer " + pw },
@@ -133,107 +133,102 @@
           return res.json();
         })
         .then((data) => {
-          fullData = Object.entries(data);
-          renderTable();
+          currentPassword = pw;
+          allData = Object.entries(data).map(([id, u]) => ({ id, ...u }));
+          renderDashboard();
         })
         .catch(() => {
-          errorDiv.textContent = "비밀번호가 틀렸습니다.";
+          error.textContent = "비밀번호가 틀렸습니다.";
+          error.className = "error";
         });
     }
 
-    function renderTable() {
+    function renderDashboard() {
       const container = document.getElementById("main");
-      const totalPages = Math.ceil(fullData.length / itemsPerPage);
-      if (currentPage > totalPages) currentPage = totalPages;
-      if (currentPage < 1) currentPage = 1;
-      const start = (currentPage - 1) * itemsPerPage;
-      const end = start + itemsPerPage;
-      const pageData = fullData.slice(start, end);
-
       container.innerHTML = `
         <h1>Roblox 유저 목록</h1>
-        <div class="action-buttons">
+        <div class="controls">
           <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
-          <button onclick="login(true)">새로고침</button>
-          <select onchange="setItemsPerPage(this.value)">
+          <select id="perPage">
             <option value="10">10개씩 보기</option>
             <option value="25">25개씩 보기</option>
             <option value="50">50개씩 보기</option>
           </select>
+          <button onclick="refresh()">새로고침</button>
         </div>
         <table>
           <thead>
             <tr>
-              <th onclick="sortTable(0, false)">User ID</th>
-              <th onclick="sortTable(1, false)">Money</th>
-              <th onclick="sortTable(2, false)">Playtime</th>
-              <th onclick="sortTable(3, true)">Username</th>
-              <th onclick="sortTable(4, true)">Updated</th>
+              <th onclick="sortBy('id')">User ID</th>
+              <th onclick="sortBy('money')">Money</th>
+              <th onclick="sortBy('playtime')">Playtime</th>
+              <th onclick="sortBy('username')">Username</th>
+              <th onclick="sortBy('updatedAt')">Updated</th>
             </tr>
           </thead>
-          <tbody id="rows">
-            ${pageData.map(([id, u]) => `
-              <tr>
-                <td>${id}</td>
-                <td>${u.money ?? 0}</td>
-                <td>${u.playtime ?? 0}</td>
-                <td>${u.username ?? 'Unknown'}</td>
-                <td>${new Date(u.updatedAt).toLocaleString()}</td>
-              </tr>`).join('')}
-          </tbody>
+          <tbody id="rows"></tbody>
         </table>
         <div class="pagination">
-          <button onclick="changePage(-1)">이전</button>
-          <span>${currentPage} / ${totalPages}</span>
-          <button onclick="changePage(1)">다음</button>
+          <button onclick="changePage(-1)">&lt; 이전</button>
+          <span id="pageInfo"></span>
+          <button onclick="changePage(1)">다음 &gt;</button>
         </div>
       `;
 
-      document.getElementById("search").addEventListener("input", function () {
-        const q = this.value.toLowerCase();
-        fullData = fullData.filter(([id, u]) =>
-          id.includes(q) || (u.username ?? '').toLowerCase().includes(q)
-        );
+      document.getElementById("perPage").value = rowsPerPage;
+      document.getElementById("perPage").addEventListener("change", e => {
+        rowsPerPage = +e.target.value;
         currentPage = 1;
-        renderTable();
+        updateTable();
       });
+
+      document.getElementById("search").addEventListener("input", updateTable);
+      updateTable();
     }
 
-    function sortTable(index, isText) {
-      fullData.sort((a, b) => {
-        const valA = getValue(a[1], index, a[0]);
-        const valB = getValue(b[1], index, b[0]);
-        const aVal = isText ? valA : parseFloat(valA);
-        const bVal = isText ? valB : parseFloat(valB);
-        return (aVal > bVal ? 1 : -1) * sortDirection;
-      });
-      sortDirection *= -1;
-      renderTable();
-    }
+    function updateTable() {
+      const search = document.getElementById("search").value.toLowerCase();
+      const filtered = allData.filter(row =>
+        row.id.includes(search) || (row.username ?? "Unknown").toLowerCase().includes(search)
+      );
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      const pageData = filtered.slice(start, end);
 
-    function getValue(obj, index, id) {
-      switch(index) {
-        case 0: return id;
-        case 1: return obj.money ?? 0;
-        case 2: return obj.playtime ?? 0;
-        case 3: return obj.username ?? 'Unknown';
-        case 4: return obj.updatedAt ?? 0;
-        default: return '';
-      }
-    }
+      const tbody = document.getElementById("rows");
+      tbody.innerHTML = pageData.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.money ?? 0}</td>
+          <td>${u.playtime ?? 0}</td>
+          <td>${u.username ?? 'Unknown'}</td>
+          <td>${new Date(u.updatedAt).toLocaleString()}</td>
+        </tr>
+      `).join("");
 
-    function changePage(delta) {
-      const totalPages = Math.ceil(fullData.length / itemsPerPage);
-      currentPage += delta;
+      const pageInfo = document.getElementById("pageInfo");
+      const totalPages = Math.ceil(filtered.length / rowsPerPage);
       if (currentPage < 1) currentPage = totalPages;
       if (currentPage > totalPages) currentPage = 1;
-      renderTable();
+      pageInfo.textContent = `${currentPage} / ${totalPages}`;
     }
 
-    function setItemsPerPage(count) {
-      itemsPerPage = parseInt(count);
-      currentPage = 1;
-      renderTable();
+    function refresh() {
+      login();
+    }
+
+    function changePage(dir) {
+      currentPage += dir;
+      updateTable();
+    }
+
+    function sortBy(key) {
+      allData.sort((a, b) => {
+        const valA = key === 'updatedAt' ? new Date(a[key]) : a[key] ?? 0;
+        const valB = key === 'updatedAt' ? new Date(b[key]) : b[key] ?? 0;
+        return valA - valB;
+      });
+      updateTable();
     }
   </script>
 </body>
