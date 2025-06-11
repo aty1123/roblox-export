@@ -103,6 +103,15 @@
     .pagination button {
       min-width: 100px;
     }
+    .login-box {
+      width: 100%;
+      max-width: 420px;
+      background: #1a1a1a;
+      padding: 40px 32px;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      text-align: center;
+    }
     @media screen and (max-width: 768px) {
       th, td {
         font-size: 14px;
@@ -115,9 +124,9 @@
   </style>
 </head>
 <body>
-  <div class="container" id="main" style="text-align: center; max-width: 400px; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh;">
+  <div class="login-box" id="main">
     <h1>관리자 로그인</h1>
-    <input type="password" id="pw" placeholder="관리자 비밀번호 입력" style="margin-bottom:12px; width:100%"/>
+    <input type="password" id="pw" placeholder="관리자 비밀번호 입력" style="margin-bottom:12px; width:100%" />
     <button onclick="login()" style="width:100%">로그인</button>
   </div>
   <script>
@@ -129,11 +138,13 @@
       window.currentPw = pw;
 
       fetch('/admin/data', { headers: { Authorization: `Bearer ${pw}` } })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error('인증 실패');
+          return res.json();
+        })
         .then(data => {
           allData = data;
-          document.getElementById('main').style = '';
-          document.getElementById('main').innerHTML = `
+          document.getElementById('main').outerHTML = `<div class='container' id='main'>
             <h1>Roblox 유저 목록</h1>
             <div class="action-bar">
               <div class="group">
@@ -177,7 +188,8 @@
               <button onclick="changePage(1)">다음 ➡</button>
             </div>
             <canvas id="chart"></canvas>
-          `;
+          </div>`;
+
           document.getElementById('search').addEventListener('input', () => {
             currentPage = 1;
             renderRows();
@@ -185,11 +197,11 @@
           renderRows();
           drawChart();
         })
-        .catch(() => alert('❌ 인증 실패'));
+        .catch(err => alert('❌ 인증 실패: ' + err.message));
     }
 
     function renderRows() {
-      const search = document.getElementById('search').value.toLowerCase();
+      const search = document.getElementById('search')?.value.toLowerCase() || "";
       const rows = document.getElementById('rows');
       let entries = Object.entries(allData).map(([id, u]) => ({ id, ...u }));
       if (search) entries = entries.filter(u => u.id.includes(search) || (u.username ?? '').toLowerCase().includes(search));
@@ -201,6 +213,8 @@
       });
 
       const totalPages = Math.ceil(entries.length / perPage);
+      if (currentPage < 1) currentPage = totalPages;
+      if (currentPage > totalPages) currentPage = 1;
       const start = (currentPage - 1) * perPage;
       const pageData = entries.slice(start, start + perPage);
 
