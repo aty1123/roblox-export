@@ -15,12 +15,18 @@ admin.initializeApp({
 });
 
 const db = admin.database();
+const SECRET_KEY = "aty1123-super-very-ultra-secret-key-20051123"; // 🔐 여기 추가
 
 app.get("/", (req, res) => {
   res.send("✅ Firebase 연동 서버 작동 중!");
 });
 
 app.post("/backup", async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader || authHeader !== `Bearer ${SECRET_KEY}`) {
+    return res.status(401).send("❌ 인증 실패");
+  }
+
   const { userId, money, playtime } = req.body;
   if (!userId) return res.status(400).send("userId 없음");
 
@@ -39,4 +45,7 @@ app.post("/backup", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🚀 서버 실행 중!");
+  console.log("✅ Firebase 연동 서버 작동 중!");
+});
