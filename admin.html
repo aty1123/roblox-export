@@ -1,124 +1,124 @@
-// ✅ 관리자 UI 전체 구현 코드 (/admin)
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🔐 관리자 로그인</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      background-color: #f5f7fa;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 800px;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 24px;
+    }
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      background-color: #2f80ed;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #1366d6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      text-align: center;
+    }
+    th {
+      background-color: #2f80ed;
+      color: white;
+    }
+    tr:hover {
+      background-color: #f0f4fa;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="main">
+    <h1>🔐 관리자 로그인</h1>
+    <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
+    <button onclick="login()">로그인</button>
+  </div>
 
-const express = require("express");
-const admin = require("firebase-admin");
-const app = express();
+  <script>
+    function login() {
+      const pw = document.getElementById("pw").value;
+      fetch("/admin/data", {
+        headers: { Authorization: "Bearer " + pw },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          const container = document.getElementById("main");
+          container.innerHTML = `
+            <h1>📊 Roblox 백업된 유저 목록</h1>
+            <input type="text" id="search" onkeyup="filter()" placeholder="User ID 또는 이름 검색" />
+            <table>
+              <thead>
+                <tr><th>User ID</th><th>Money</th><th>Playtime</th><th>Username</th><th>Updated</th></tr>
+              </thead>
+              <tbody id="rows">
+                ${Object.entries(data).map(([id, u]) => `
+                  <tr>
+                    <td>${id}</td>
+                    <td>${u.money ?? 0}</td>
+                    <td>${u.playtime ?? 0}</td>
+                    <td>${u.username ?? 'Unknown'}</td>
+                    <td>${new Date(u.updatedAt).toLocaleString()}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          `;
+        })
+        .catch(() => alert("❌ 인증 실패 또는 오류 발생"));
+    }
 
-app.use(express.json());
-
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  }),
-  databaseURL: "https://roblox-backup-default-rtdb.asia-southeast1.firebasedatabase.app/",
-});
-
-const db = admin.database();
-const SECRET_KEY = "aty1123-super-very-ultra-secret-key-20051123";
-
-// ✅ 로그인용 HTML 렌더
-app.get("/admin", (req, res) => {
-  res.send(`
-  <html>
-    <head>
-      <title>Admin Login</title>
-      <style>
-        body { font-family: sans-serif; padding: 50px; text-align: center; background: #f9f9f9; }
-        input { padding: 10px; font-size: 16px; width: 300px; }
-        button { padding: 10px 20px; font-size: 16px; }
-      </style>
-    </head>
-    <body>
-      <h1>🔐 관리자 로그인</h1>
-      <input id="password" type="password" placeholder="비밀번호 입력" />
-      <br><br>
-      <button onclick="login()">로그인</button>
-      <script>
-        function login() {
-          const pw = document.getElementById('password').value;
-          fetch('/admin/data', {
-            headers: { 'Authorization': 'Bearer ' + pw }
-          })
-          .then(res => res.text())
-          .then(html => document.body.innerHTML = html)
-          .catch(() => alert('불러오기 실패'))
-        }
-      </script>
-    </body>
-  </html>
-  `);
-});
-
-// ✅ 실제 데이터 테이블 응답
-app.get("/admin/data", async (req, res) => {
-  const auth = req.headers["authorization"];
-  if (!auth || auth !== `Bearer ${SECRET_KEY}`) {
-    return res.status(401).send("<h2>❌ 인증 실패: 잘못된 비밀번호</h2>");
-  }
-
-  const snapshot = await db.ref("users").once("value");
-  const data = snapshot.val() || {};
-
-  const users = Object.keys(data).map((userId) => ({
-    userId,
-    money: data[userId].money || 0,
-    playtime: data[userId].playtime || 0,
-    username: data[userId].username || "(이름 없음)",
-    updatedAt: data[userId].updatedAt
-      ? new Date(data[userId].updatedAt).toLocaleString()
-      : "N/A",
-  }));
-
-  users.sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
-
-  const html = `
-  <html>
-  <head>
-    <title>Roblox 백업 관리자</title>
-    <style>
-      body { font-family: sans-serif; padding: 20px; background: #fff; }
-      h1 { text-align: center; }
-      input { width: 300px; padding: 10px; margin-bottom: 10px; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
-      th { background: #333; color: white; }
-      tr:hover { background-color: #f2f2f2; }
-    </style>
-    <script>
-      function filterTable() {
-        const input = document.getElementById('search').value.toLowerCase();
-        const rows = document.querySelectorAll('tbody tr');
-        rows.forEach(row => {
-          const [id, money, playtime, name, time] = row.children;
-          const text = (id.textContent + name.textContent).toLowerCase();
-          row.style.display = text.includes(input) ? '' : 'none';
-        });
-      }
-    </script>
-  </head>
-  <body>
-    <h1>🗂️ Roblox 백업된 유저 목록</h1>
-    <input id="search" onkeyup="filterTable()" placeholder="User ID 또는 이름 검색" />
-    <table>
-      <thead>
-        <tr><th>User ID</th><th>Money</th><th>Playtime</th><th>Username</th><th>Updated At</th></tr>
-      </thead>
-      <tbody>
-        ${users.map(u => `
-          <tr>
-            <td>${u.userId}</td>
-            <td>${u.money.toLocaleString()}</td>
-            <td>${u.playtime.toLocaleString()}</td>
-            <td>${u.username}</td>
-            <td>${u.updatedAt}</td>
-          </tr>`).join('')}
-      </tbody>
-    </table>
-  </body>
-  </html>
-  `;
-
-  res.send(html);
-});
+    function filter() {
+      const q = document.getElementById('search').value.toLowerCase();
+      document.querySelectorAll('#rows tr').forEach(tr => {
+        const text = tr.textContent.toLowerCase();
+        tr.style.display = text.includes(q) ? '' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>
