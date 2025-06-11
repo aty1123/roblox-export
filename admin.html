@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>IronMountain 관리자 대시보드</title>
+  <link rel="icon" href="https://img.icons8.com/ios-filled/50/ffffff/hammer.png" type="image/png">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
@@ -252,37 +253,40 @@
       }[key];
     }
 
-  function refresh() {
-  if (!currentPassword) return;
+     function refresh() {
+      fetch("/admin/data", {
+        headers: { Authorization: "Bearer " + currentPassword },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("인증 실패");
+          return res.json();
+        })
+        .then((data) => {
+          allData = Object.entries(data).map(([id, u]) => ({ id, ...u }));
+    
+          // 검색어 반영한 채 필터링 유지
+          const q = document.getElementById("search").value.toLowerCase();
+          filtered = allData.filter(row =>
+            row.id.includes(q) || (row.username ?? "Unknown").toLowerCase().includes(q)
+          );
+    
+          // 정렬 기준 유지
+          if (currentSortKey) {
+            filtered.sort((a, b) => {
+              const valA = currentSortKey === 'updatedAt' ? new Date(a[currentSortKey]) : a[currentSortKey] ?? 0;
+              const valB = currentSortKey === 'updatedAt' ? new Date(b[currentSortKey]) : b[currentSortKey] ?? 0;
+              if (typeof valA === 'string') return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+              return sortAsc ? valA - valB : valB - valA;
+            });
+          }
+    
+          updateTable();
+        })
+        .catch((err) => {
+          console.error("❌ 새로고침 실패:", err);
+        });
+    }
 
-  const error = document.getElementById("error");
-  if (error) {
-    error.textContent = "데이터 새로고침 중...";
-    error.className = "loading";
-  }
-
-  fetch("/admin/data", {
-    headers: { Authorization: "Bearer " + currentPassword },
-  })
-    .then((res) => {
-      if (!res.ok) throw new Error("인증 실패");
-      return res.json();
-    })
-    .then((data) => {
-      allData = Object.entries(data).map(([id, u]) => ({ id, ...u }));
-      filtered = [...allData];
-      currentPage = 1;
-      updateTable();
-
-      if (error) error.textContent = "";
-    })
-    .catch(() => {
-      if (error) {
-        error.textContent = "❌ 새로고침 실패";
-        error.className = "error";
-      }
-    });
-}
 
 
     function changePage(dir) {
