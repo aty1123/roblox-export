@@ -82,12 +82,15 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex: 1;
     }
     canvas {
       background-color: #fff;
       border-radius: 8px;
       padding: 16px;
       margin-top: 32px;
+      width: 100% !important;
+      max-height: 400px;
     }
     .pagination {
       display: flex;
@@ -104,11 +107,15 @@
       th, td {
         font-size: 14px;
       }
+      .action-bar .group {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container" id="main">
+  <div class="container" id="main" style="text-align: center; max-width: 400px;">
     <h1>관리자 로그인</h1>
     <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
     <button onclick="login()">로그인</button>
@@ -121,6 +128,8 @@
     let sortAsc = true;
     let currentPage = 1;
     let perPage = 10;
+    let currentChartField = "playtime";
+    let currentChartPercent = 100;
 
     function paginate(data) {
       const start = (currentPage - 1) * perPage;
@@ -145,6 +154,7 @@
             updatedAt: u.updatedAt ?? 0
           }));
 
+          document.getElementById("main").style.maxWidth = "1100px";
           renderTable();
         })
         .catch(() => alert("❌ 인증 실패 또는 오류 발생"));
@@ -156,11 +166,21 @@
         <h1>Roblox 유저 목록</h1>
         <div class="action-bar">
           <div class="group">
-            <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
+            <input type="text" id="search" placeholder="User ID 또는 Username 검색" style="flex:1"/>
             <select id="perPage">
               <option value="10">10개씩 보기</option>
               <option value="25">25개씩 보기</option>
               <option value="50">50개씩 보기</option>
+            </select>
+            <select id="chartField">
+              <option value="playtime">Playtime 기준</option>
+              <option value="money">Money 기준</option>
+            </select>
+            <select id="chartPercent">
+              <option value="10">상위 10%</option>
+              <option value="25">상위 25%</option>
+              <option value="50">상위 50%</option>
+              <option value="100">전체</option>
             </select>
           </div>
           <button onclick="login(true)">새로고침</button>
@@ -193,6 +213,14 @@
       };
 
       document.getElementById("search").addEventListener("input", renderRows);
+      document.getElementById("chartField").onchange = () => {
+        currentChartField = document.getElementById("chartField").value;
+        drawChart();
+      };
+      document.getElementById("chartPercent").onchange = () => {
+        currentChartPercent = parseInt(document.getElementById("chartPercent").value);
+        drawChart();
+      };
 
       renderRows();
       drawChart();
@@ -245,16 +273,20 @@
     }
 
     function drawChart() {
+      const field = currentChartField;
+      const percent = currentChartPercent;
+      const filtered = fullData.filter(u => u[field] > 0);
+      const sorted = [...filtered].sort((a, b) => b[field] - a[field]);
+      const topN = sorted.slice(0, Math.ceil(sorted.length * percent / 100));
       const ctx = document.getElementById("chart").getContext("2d");
-      const usernames = fullData.map(u => u.username);
-      const playtimes = fullData.map(u => u.playtime);
+
       new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: usernames,
+          labels: topN.map(u => u.username),
           datasets: [{
-            label: 'Playtime',
-            data: playtimes,
+            label: `${field} 상위 ${percent}%`,
+            data: topN.map(u => u[field]),
             backgroundColor: '#90caf9'
           }]
         },
