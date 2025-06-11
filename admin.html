@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Roblox 관리자 대시보드</title>
+  <title>IronMountain 관리자 대시보드</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
@@ -82,6 +82,14 @@
       background-color: #111;
       cursor: pointer;
     }
+    th.sorted-asc::after {
+      content: " ▲";
+      color: #aaa;
+    }
+    th.sorted-desc::after {
+      content: " ▼";
+      color: #aaa;
+    }
     tr:hover {
       background-color: #1e1e1e;
     }
@@ -120,6 +128,8 @@
     let rowsPerPage = 10;
     let allData = [];
     let filtered = [];
+    let currentSortKey = null;
+    let sortAsc = true;
 
     function login() {
       const pw = document.getElementById("pw").value;
@@ -154,7 +164,7 @@
     function renderDashboard() {
       const container = document.getElementById("main");
       container.innerHTML = `
-        <h1>Roblox 유저 목록</h1>
+        <h1>IronMountain 유저 데이터베이스</h1>
         <div class="controls">
           <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
           <select id="perPage">
@@ -223,6 +233,23 @@
       if (currentPage < 1) currentPage = totalPages;
       if (currentPage > totalPages) currentPage = 1;
       pageInfo.textContent = `${currentPage} / ${totalPages}`;
+
+      document.querySelectorAll("th").forEach(th => {
+        th.classList.remove("sorted-asc", "sorted-desc");
+        if (th.textContent.replace(/\s+/g, '') === keyToLabel(currentSortKey)) {
+          th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
+        }
+      });
+    }
+
+    function keyToLabel(key) {
+      return {
+        id: "User ID",
+        money: "Money",
+        playtime: "Playtime",
+        username: "Username",
+        updatedAt: "Updated"
+      }[key];
     }
 
     function refresh() {
@@ -238,12 +265,17 @@
     }
 
     function sortBy(key) {
+      sortAsc = currentSortKey === key ? !sortAsc : true;
+      currentSortKey = key;
+
       filtered.sort((a, b) => {
         const valA = key === 'updatedAt' ? new Date(a[key]) : a[key] ?? 0;
         const valB = key === 'updatedAt' ? new Date(b[key]) : b[key] ?? 0;
-        if (typeof valA === 'string') return valA.localeCompare(valB);
-        return valA - valB;
+        if (typeof valA === 'string') return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        return sortAsc ? valA - valB : valB - valA;
       });
+
+      currentPage = 1;
       updateTable();
     }
   </script>
