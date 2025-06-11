@@ -24,7 +24,7 @@
       border-radius: 12px;
       box-shadow: 0 0 30px rgba(0,0,0,0.5);
       width: 100%;
-      max-width: 1000px;
+      max-width: 500px;
     }
     h1 {
       text-align: center;
@@ -37,12 +37,12 @@
       font-size: 16px;
       border: 1px solid #333;
       border-radius: 6px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       background-color: #2a2a2a;
       color: #f0f0f0;
     }
     button {
-      padding: 12px 24px;
+      padding: 12px;
       font-size: 16px;
       font-weight: 600;
       background-color: #444;
@@ -55,40 +55,11 @@
     button:hover {
       background-color: #666;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 24px;
-      overflow-x: auto;
-    }
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid #333;
+    .error {
+      color: #ff5e5e;
+      margin-top: 10px;
+      font-size: 14px;
       text-align: center;
-    }
-    th {
-      background-color: #111;
-      color: #fff;
-      cursor: pointer;
-    }
-    tr:hover {
-      background-color: #1e1e1e;
-    }
-    .action-buttons {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-    .action-buttons button {
-      flex: 1;
-      min-width: 120px;
-    }
-    @media screen and (max-width: 768px) {
-      th, td {
-        padding: 8px;
-        font-size: 14px;
-      }
     }
   </style>
 </head>
@@ -97,6 +68,7 @@
     <h1>관리자 로그인</h1>
     <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
     <button onclick="login()">로그인</button>
+    <div id="error" class="error"></div>
   </div>
 
   <script>
@@ -104,8 +76,14 @@
     let sortDirection = 1;
 
     function login(refresh = false) {
-      const pw = refresh ? currentPassword : document.getElementById("pw").value;
-      if (!pw) return;
+      const pwInput = document.getElementById("pw");
+      const errorDiv = document.getElementById("error");
+      const pw = refresh ? currentPassword : pwInput.value;
+      if (!pw) {
+        errorDiv.textContent = "비밀번호를 입력해주세요.";
+        return;
+      }
+      errorDiv.textContent = "";
       currentPassword = pw;
 
       fetch("/admin/data", {
@@ -116,54 +94,62 @@
           return res.json();
         })
         .then((data) => {
-          const container = document.getElementById("main");
-          container.innerHTML = `
-            <h1>Roblox 유저 목록</h1>
-            <div class="action-buttons">
-              <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
-              <button onclick="login(true)">새로고침</button>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th onclick="sortTable(0)">User ID</th>
-                  <th onclick="sortTable(1)">Money</th>
-                  <th onclick="sortTable(2)">Playtime</th>
-                  <th onclick="sortTable(3)">Username</th>
-                  <th onclick="sortTable(4)">Updated</th>
-                </tr>
-              </thead>
-              <tbody id="rows">
-                ${Object.entries(data).map(([id, u]) => `
-                  <tr>
-                    <td>${id}</td>
-                    <td>${u.money ?? 0}</td>
-                    <td>${u.playtime ?? 0}</td>
-                    <td>${u.username ?? 'Unknown'}</td>
-                    <td>${new Date(u.updatedAt).toLocaleString()}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          `;
-
-          document.getElementById("search").addEventListener("input", function() {
-            const q = this.value.toLowerCase();
-            document.querySelectorAll("#rows tr").forEach(tr => {
-              const uid = tr.children[0].textContent.toLowerCase();
-              const uname = tr.children[3].textContent.toLowerCase();
-              tr.style.display = uid.includes(q) || uname.includes(q) ? '' : 'none';
-            });
-          });
+          renderTable(data);
         })
-        .catch(() => alert("❌ 인증 실패 또는 오류 발생"));
+        .catch(() => {
+          errorDiv.textContent = "비밀번호가 틀렸습니다.";
+        });
     }
 
-    function sortTable(n) {
+    function renderTable(data) {
+      const container = document.getElementById("main");
+      container.innerHTML = `
+        <h1>Roblox 유저 목록</h1>
+        <div class="action-buttons">
+          <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
+          <button onclick="login(true)">새로고침</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortTable(0, true)">User ID</th>
+              <th onclick="sortTable(1, false)">Money</th>
+              <th onclick="sortTable(2, false)">Playtime</th>
+              <th onclick="sortTable(3, true)">Username</th>
+              <th onclick="sortTable(4, true)">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            ${Object.entries(data).map(([id, u]) => `
+              <tr>
+                <td>${id}</td>
+                <td>${u.money ?? 0}</td>
+                <td>${u.playtime ?? 0}</td>
+                <td>${u.username ?? 'Unknown'}</td>
+                <td>${new Date(u.updatedAt).toLocaleString()}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+
+      document.getElementById("search").addEventListener("input", function() {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll("#rows tr").forEach(tr => {
+          const uid = tr.children[0].textContent.toLowerCase();
+          const uname = tr.children[3].textContent.toLowerCase();
+          tr.style.display = uid.includes(q) || uname.includes(q) ? '' : 'none';
+        });
+      });
+    }
+
+    function sortTable(index, isText) {
       const rows = Array.from(document.querySelector("#rows").rows);
       rows.sort((a, b) => {
-        const valA = a.cells[n].textContent;
-        const valB = b.cells[n].textContent;
-        return (valA > valB ? 1 : -1) * sortDirection;
+        const valA = a.cells[index].textContent.trim();
+        const valB = b.cells[index].textContent.trim();
+        const aVal = isText ? valA : parseFloat(valA.replace(/[^\d.\-]/g, ''));
+        const bVal = isText ? valB : parseFloat(valB.replace(/[^\d.\-]/g, ''));
+        return (aVal > bVal ? 1 : -1) * sortDirection;
       });
       sortDirection *= -1;
       rows.forEach(row => document.querySelector("#rows").appendChild(row));
