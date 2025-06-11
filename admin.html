@@ -252,9 +252,38 @@
       }[key];
     }
 
-    function refresh() {
-      login();
-    }
+  function refresh() {
+  if (!currentPassword) return;
+
+  const error = document.getElementById("error");
+  if (error) {
+    error.textContent = "데이터 새로고침 중...";
+    error.className = "loading";
+  }
+
+  fetch("/admin/data", {
+    headers: { Authorization: "Bearer " + currentPassword },
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error("인증 실패");
+      return res.json();
+    })
+    .then((data) => {
+      allData = Object.entries(data).map(([id, u]) => ({ id, ...u }));
+      filtered = [...allData];
+      currentPage = 1;
+      updateTable();
+
+      if (error) error.textContent = "";
+    })
+    .catch(() => {
+      if (error) {
+        error.textContent = "❌ 새로고침 실패";
+        error.className = "error";
+      }
+    });
+}
+
 
     function changePage(dir) {
       const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
