@@ -13,10 +13,10 @@
       margin: 0;
       background-color: #0e0e0e;
       color: #f0f0f0;
+      min-height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
       padding: 20px;
     }
     .container {
@@ -85,7 +85,7 @@
       flex: 1;
     }
     canvas {
-      background-color: #fff;
+      background-color: #1a1a1a;
       border-radius: 8px;
       padding: 16px;
       margin-top: 32px;
@@ -115,193 +115,141 @@
   </style>
 </head>
 <body>
-  <div class="container" id="main" style="text-align: center; max-width: 400px;">
+  <div class="container" id="main" style="text-align: center; max-width: 400px; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh;">
     <h1>관리자 로그인</h1>
-    <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
-    <button onclick="login()">로그인</button>
+    <input type="password" id="pw" placeholder="관리자 비밀번호 입력" style="margin-bottom:12px; width:100%"/>
+    <button onclick="login()" style="width:100%">로그인</button>
   </div>
-
   <script>
-    let currentPassword = "";
-    let fullData = [];
-    let sortIndex = 0;
-    let sortAsc = true;
-    let currentPage = 1;
-    let perPage = 10;
-    let currentChartField = "playtime";
-    let currentChartPercent = 100;
-
-    function paginate(data) {
-      const start = (currentPage - 1) * perPage;
-      return data.slice(start, start + perPage);
-    }
+    let allData = {}, currentPage = 1, perPage = 10, sortCol = 0, sortAsc = true, currentMetric = 'playtime';
 
     function login(refresh = false) {
-      const pw = refresh ? currentPassword : document.getElementById("pw").value;
+      const pw = refresh ? window.currentPw : document.getElementById('pw').value;
       if (!pw) return;
-      currentPassword = pw;
+      window.currentPw = pw;
 
-      fetch("/admin/data", {
-        headers: { Authorization: "Bearer " + pw },
-      })
+      fetch('/admin/data', { headers: { Authorization: `Bearer ${pw}` } })
         .then(res => res.json())
         .then(data => {
-          fullData = Object.entries(data).map(([id, u]) => ({
-            id,
-            money: u.money ?? 0,
-            playtime: u.playtime ?? 0,
-            username: u.username ?? 'Unknown',
-            updatedAt: u.updatedAt ?? 0
-          }));
-
-          document.getElementById("main").style.maxWidth = "1100px";
-          renderTable();
+          allData = data;
+          document.getElementById('main').style = '';
+          document.getElementById('main').innerHTML = `
+            <h1>Roblox 유저 목록</h1>
+            <div class="action-bar">
+              <div class="group">
+                <input id="search" placeholder="User ID 또는 Username 검색" style="flex:2" />
+                <select id="perPage" onchange="perPage = +this.value; currentPage=1; renderRows();">
+                  <option value="10">10개씩 보기</option>
+                  <option value="25">25개씩 보기</option>
+                  <option value="50">50개씩 보기</option>
+                </select>
+                <button onclick="login(true)">🔁 새로고침</button>
+              </div>
+              <div class="group">
+                <label>그래프:</label>
+                <select id="metric" onchange="currentMetric=this.value; drawChart();">
+                  <option value="playtime">Playtime</option>
+                  <option value="money">Money</option>
+                </select>
+                <select id="percent" onchange="drawChart()">
+                  <option value="1">상위 1%</option>
+                  <option value="5">상위 5%</option>
+                  <option value="10" selected>상위 10%</option>
+                  <option value="25">상위 25%</option>
+                </select>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th onclick="sortBy(0)">User ID</th>
+                  <th onclick="sortBy(1)">Money</th>
+                  <th onclick="sortBy(2)">Playtime</th>
+                  <th onclick="sortBy(3)">Username</th>
+                  <th onclick="sortBy(4)">Updated</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+            <div class="pagination">
+              <button onclick="changePage(-1)">⬅ 이전</button>
+              <span id="page"></span>
+              <button onclick="changePage(1)">다음 ➡</button>
+            </div>
+            <canvas id="chart"></canvas>
+          `;
+          document.getElementById('search').addEventListener('input', () => {
+            currentPage = 1;
+            renderRows();
+          });
+          renderRows();
+          drawChart();
         })
-        .catch(() => alert("❌ 인증 실패 또는 오류 발생"));
-    }
-
-    function renderTable() {
-      const container = document.getElementById("main");
-      container.innerHTML = `
-        <h1>Roblox 유저 목록</h1>
-        <div class="action-bar">
-          <div class="group">
-            <input type="text" id="search" placeholder="User ID 또는 Username 검색" style="flex:1"/>
-            <select id="perPage">
-              <option value="10">10개씩 보기</option>
-              <option value="25">25개씩 보기</option>
-              <option value="50">50개씩 보기</option>
-            </select>
-            <select id="chartField">
-              <option value="playtime">Playtime 기준</option>
-              <option value="money">Money 기준</option>
-            </select>
-            <select id="chartPercent">
-              <option value="10">상위 10%</option>
-              <option value="25">상위 25%</option>
-              <option value="50">상위 50%</option>
-              <option value="100">전체</option>
-            </select>
-          </div>
-          <button onclick="login(true)">새로고침</button>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th onclick="sortBy(0)">User ID</th>
-              <th onclick="sortBy(1)">Money</th>
-              <th onclick="sortBy(2)">Playtime</th>
-              <th onclick="sortBy(3)">Username</th>
-              <th onclick="sortBy(4)">Updated</th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
-        <div class="pagination">
-          <button onclick="changePage(-1)">이전</button>
-          <span id="pageInfo"></span>
-          <button onclick="changePage(1)">다음</button>
-        </div>
-        <canvas id="chart"></canvas>
-      `;
-
-      document.getElementById("perPage").value = perPage;
-      document.getElementById("perPage").onchange = (e) => {
-        perPage = parseInt(e.target.value);
-        currentPage = 1;
-        renderRows();
-      };
-
-      document.getElementById("search").addEventListener("input", renderRows);
-      document.getElementById("chartField").onchange = () => {
-        currentChartField = document.getElementById("chartField").value;
-        drawChart();
-      };
-      document.getElementById("chartPercent").onchange = () => {
-        currentChartPercent = parseInt(document.getElementById("chartPercent").value);
-        drawChart();
-      };
-
-      renderRows();
-      drawChart();
+        .catch(() => alert('❌ 인증 실패'));
     }
 
     function renderRows() {
-      const q = document.getElementById("search").value.toLowerCase();
-      const filtered = fullData.filter(u =>
-        u.id.includes(q) || u.username.toLowerCase().includes(q)
-      );
-      const rows = paginate(filtered).map(u => `
+      const search = document.getElementById('search').value.toLowerCase();
+      const rows = document.getElementById('rows');
+      let entries = Object.entries(allData).map(([id, u]) => ({ id, ...u }));
+      if (search) entries = entries.filter(u => u.id.includes(search) || (u.username ?? '').toLowerCase().includes(search));
+
+      entries.sort((a, b) => {
+        const cols = ['id', 'money', 'playtime', 'username', 'updatedAt'];
+        const key = cols[sortCol];
+        return (a[key] > b[key] ? 1 : -1) * (sortAsc ? 1 : -1);
+      });
+
+      const totalPages = Math.ceil(entries.length / perPage);
+      const start = (currentPage - 1) * perPage;
+      const pageData = entries.slice(start, start + perPage);
+
+      rows.innerHTML = pageData.map(u => `
         <tr>
           <td>${u.id}</td>
-          <td>${u.money}</td>
-          <td>${u.playtime}</td>
-          <td>${u.username}</td>
+          <td>${u.money ?? 0}</td>
+          <td>${u.playtime ?? 0}</td>
+          <td>${u.username ?? 'Unknown'}</td>
           <td>${new Date(u.updatedAt).toLocaleString()}</td>
         </tr>
       `).join('');
-      document.getElementById("rows").innerHTML = rows;
-      const maxPage = Math.ceil(filtered.length / perPage);
-      document.getElementById("pageInfo").textContent = `${currentPage} / ${maxPage}`;
+      document.getElementById('page').textContent = `${currentPage} / ${totalPages}`;
     }
 
-    function sortBy(index) {
-      const keys = ["id", "money", "playtime", "username", "updatedAt"];
-      const key = keys[index];
-      fullData.sort((a, b) => {
-        const valA = a[key];
-        const valB = b[key];
-        if (key === 'updatedAt') return (valA - valB) * (sortAsc ? 1 : -1);
-        if (!isNaN(valA) && !isNaN(valB)) return (Number(valA) - Number(valB)) * (sortAsc ? 1 : -1);
-        return valA.localeCompare(valB) * (sortAsc ? 1 : -1);
-      });
-      sortAsc = !sortAsc;
-      currentPage = 1;
+    function changePage(d) {
+      currentPage += d;
       renderRows();
     }
 
-    function changePage(dir) {
-      const q = document.getElementById("search").value.toLowerCase();
-      const filtered = fullData.filter(u =>
-        u.id.includes(q) || u.username.toLowerCase().includes(q)
-      );
-      const maxPage = Math.ceil(filtered.length / perPage);
-      currentPage += dir;
-      if (currentPage < 1) currentPage = 1;
-      if (currentPage > maxPage) currentPage = maxPage;
+    function sortBy(n) {
+      sortAsc = sortCol === n ? !sortAsc : true;
+      sortCol = n;
       renderRows();
     }
 
     function drawChart() {
-      const field = currentChartField;
-      const percent = currentChartPercent;
-      const filtered = fullData.filter(u => u[field] > 0);
-      const sorted = [...filtered].sort((a, b) => b[field] - a[field]);
-      const topN = sorted.slice(0, Math.ceil(sorted.length * percent / 100));
-      const ctx = document.getElementById("chart").getContext("2d");
+      const metric = currentMetric;
+      const topPercent = +document.getElementById('percent').value;
+      const filtered = Object.entries(allData)
+        .filter(([_, u]) => (u[metric] ?? 0) > 0)
+        .map(([id, u]) => ({ label: u.username ?? id, value: u[metric] ?? 0 }));
+      filtered.sort((a, b) => b.value - a.value);
+      const top = filtered.slice(0, Math.ceil(filtered.length * (topPercent / 100)));
 
-      new Chart(ctx, {
+      const ctx = document.getElementById('chart').getContext('2d');
+      if (window.chart) window.chart.destroy();
+      window.chart = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: topN.map(u => u.username),
-          datasets: [{
-            label: `${field} 상위 ${percent}%`,
-            data: topN.map(u => u[field]),
-            backgroundColor: '#90caf9'
-          }]
+          labels: top.map(x => x.label),
+          datasets: [{ label: metric.toUpperCase(), data: top.map(x => x.value), backgroundColor: '#90caf9' }]
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { labels: { color: '#fff' } }
-          },
+          plugins: { legend: { labels: { color: '#fff' } } },
           scales: {
-            x: {
-              ticks: { color: '#fff', autoSkip: true, maxRotation: 90, minRotation: 45 }
-            },
-            y: {
-              ticks: { color: '#fff' }
-            }
+            x: { ticks: { color: '#fff' } },
+            y: { ticks: { color: '#fff' } }
           }
         }
       });
