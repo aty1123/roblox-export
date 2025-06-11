@@ -38,7 +38,6 @@
       font-size: 16px;
       border: 1px solid #333;
       border-radius: 6px;
-      margin-bottom: 16px;
       background-color: #2a2a2a;
       color: #f0f0f0;
     }
@@ -51,6 +50,11 @@
     .controls > * {
       flex: 1;
       min-width: 150px;
+    }
+    .login-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     button {
       padding: 12px;
@@ -103,9 +107,11 @@
 <body>
   <div class="container" id="main">
     <h1>관리자 로그인</h1>
-    <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
-    <button onclick="login()">로그인</button>
-    <div id="error" class="error"></div>
+    <div class="login-controls">
+      <input type="password" id="pw" placeholder="관리자 비밀번호 입력" />
+      <button onclick="login()">로그인</button>
+      <div id="error" class="error"></div>
+    </div>
   </div>
 
   <script>
@@ -113,6 +119,7 @@
     let currentPage = 1;
     let rowsPerPage = 10;
     let allData = [];
+    let filtered = [];
 
     function login() {
       const pw = document.getElementById("pw").value;
@@ -135,6 +142,7 @@
         .then((data) => {
           currentPassword = pw;
           allData = Object.entries(data).map(([id, u]) => ({ id, ...u }));
+          filtered = [...allData];
           renderDashboard();
         })
         .catch(() => {
@@ -182,15 +190,19 @@
         updateTable();
       });
 
-      document.getElementById("search").addEventListener("input", updateTable);
+      document.getElementById("search").addEventListener("input", e => {
+        const q = e.target.value.toLowerCase();
+        filtered = allData.filter(row =>
+          row.id.includes(q) || (row.username ?? "Unknown").toLowerCase().includes(q)
+        );
+        currentPage = 1;
+        updateTable();
+      });
+
       updateTable();
     }
 
     function updateTable() {
-      const search = document.getElementById("search").value.toLowerCase();
-      const filtered = allData.filter(row =>
-        row.id.includes(search) || (row.username ?? "Unknown").toLowerCase().includes(search)
-      );
       const start = (currentPage - 1) * rowsPerPage;
       const end = start + rowsPerPage;
       const pageData = filtered.slice(start, end);
@@ -207,7 +219,7 @@
       `).join("");
 
       const pageInfo = document.getElementById("pageInfo");
-      const totalPages = Math.ceil(filtered.length / rowsPerPage);
+      const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
       if (currentPage < 1) currentPage = totalPages;
       if (currentPage > totalPages) currentPage = 1;
       pageInfo.textContent = `${currentPage} / ${totalPages}`;
@@ -218,14 +230,18 @@
     }
 
     function changePage(dir) {
+      const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
       currentPage += dir;
+      if (currentPage < 1) currentPage = totalPages;
+      if (currentPage > totalPages) currentPage = 1;
       updateTable();
     }
 
     function sortBy(key) {
-      allData.sort((a, b) => {
+      filtered.sort((a, b) => {
         const valA = key === 'updatedAt' ? new Date(a[key]) : a[key] ?? 0;
         const valB = key === 'updatedAt' ? new Date(b[key]) : b[key] ?? 0;
+        if (typeof valA === 'string') return valA.localeCompare(valB);
         return valA - valB;
       });
       updateTable();
