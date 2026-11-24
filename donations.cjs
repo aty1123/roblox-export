@@ -1,7 +1,9 @@
 "use strict";
 
 const { createHash, timingSafeEqual } = require("node:crypto");
-const UNIVERSE = 7846287280;
+const MAIN_UNIVERSE = 7846287280;
+const TEST_UNIVERSE = 9453473631;
+const donationUniverses = new Set([MAIN_UNIVERSE, TEST_UNIVERSE]);
 const positive = n => Number.isSafeInteger(n) && n > 0;
 const digest = value => createHash("sha256").update(value).digest();
 
@@ -11,7 +13,9 @@ function authenticated(req, key) {
 }
 
 function valid(r) {
-    return r && r.universeId === UNIVERSE && positive(r.userId) && positive(r.productId) &&
+    return r && donationUniverses.has(r.universeId) && positive(r.userId) && positive(r.productId) &&
+        (r.purchasePlaceId == null || positive(r.purchasePlaceId)) &&
+        (r.processedPlaceId == null || positive(r.processedPlaceId)) &&
         Number.isSafeInteger(r.amount) && r.amount >= 0 &&
         typeof r.purchaseId === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(r.purchaseId);
 }
@@ -27,7 +31,10 @@ async function record(root, receipt, now = Date.now()) {
         const old = value.receipts[hash];
         if (old) return value;
         if (!Number.isSafeInteger(value.amount + amount)) return;
-        value.receipts[hash] = { id: purchaseId, productId, amount, at: now };
+        const event = { id: purchaseId, productId, amount, at: now, universeId: receipt.universeId };
+        if (receipt.purchasePlaceId != null) event.purchasePlaceId = receipt.purchasePlaceId;
+        if (receipt.processedPlaceId != null) event.processedPlaceId = receipt.processedPlaceId;
+        value.receipts[hash] = event;
         value.amount += amount;
         value.count++;
         return value;
@@ -35,7 +42,8 @@ async function record(root, receipt, now = Date.now()) {
     if (!batch.committed) throw new Error("receipt pending");
     const saved = batch.snapshot.val();
     const event = saved.receipts[hash];
-    if (event.id !== purchaseId || event.amount !== amount || event.productId !== productId)
+    if (event.id !== purchaseId || event.amount !== amount || event.productId !== productId ||
+        (event.universeId ?? MAIN_UNIVERSE) !== receipt.universeId)
         throw new Error("receipt conflict");
     const summary = await root.child("users").child(String(userId)).transaction(previous => {
         const value = previous || { total: 0, count: 0, shards: {} };
@@ -69,14 +77,16 @@ function installDonations(app, db) {
         if (!authenticated(req, process.env.DONATION_WRITE_KEY)) return res.sendStatus(401);
         next();
     }
-    app.get("/donations/ready", writer, async (_req, res) => {
+    app.get("/donations/ready", writer, async (req, res) => {
+        const universeId = req.query.universeId === undefined ? MAIN_UNIVERSE : Number(req.query.universeId);
+        if (!donationUniverses.has(universeId)) return res.sendStatus(400);
         try {
             if (Date.now() >= checkedUntil) {
                 checking ||= root.child("health").once("value").finally(() => { checking = undefined; });
                 await checking;
                 checkedUntil = Date.now() + 60000;
             }
-            res.json({ universeId: UNIVERSE, ready: true });
+            res.json({ universeId, ready: true });
         } catch { res.sendStatus(503); }
     });
     app.post("/donations/receipt", writer, async (req, res) => {

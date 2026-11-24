@@ -182,6 +182,11 @@
       const user = document.getElementById("donation-user");
       const output = document.getElementById("donation-result");
       let controller, version, timer, lookupId = 0;
+      function purchaseSource(event) {
+        const name = event.universeId === 9453473631 ? "테스트 경험" : "본섭";
+        if (event.purchasePlaceId) return name + " · 구매 장소 " + event.purchasePlaceId;
+        return event.processedPlaceId ? name + " · 수신 장소 " + event.processedPlaceId : name;
+      }
       async function lookup() {
         const id = user.value.trim(), serial = ++lookupId;
         const recent = document.getElementById("donation-recent");
@@ -193,10 +198,10 @@
           const d = await result.json();
           if (serial !== lookupId || user.value.trim() !== id) return;
           output.textContent = id + " · 누적 " + d.total.toLocaleString() + " R$ · " + d.count.toLocaleString() +
-            "회" + (d.last ? " · 최근 " + d.last.amount + " R$ · 상품 " + d.last.productId + " · " + new Date(d.last.at).toLocaleString("ko-KR") : "");
+            "회" + (d.last ? " · 최근 " + d.last.amount + " R$ · " + purchaseSource(d.last) + " · 상품 " + d.last.productId + " · " + new Date(d.last.at).toLocaleString("ko-KR") : "");
           recent.replaceChildren(...d.recent.map(event => {
             const row = document.createElement("li");
-            row.textContent = new Date(event.at).toLocaleString("ko-KR") + " · " + event.amount + " R$ · 상품 " + event.productId + " · 영수증 " + event.id;
+            row.textContent = new Date(event.at).toLocaleString("ko-KR") + " · " + purchaseSource(event) + " · " + event.amount + " R$ · 상품 " + event.productId + " · 영수증 " + event.id;
             return row;
           }));
         } catch { if (serial === lookupId) output.textContent = "조회 실패 · 로그인을 확인한 뒤 다시 시도하세요."; }
