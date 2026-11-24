@@ -42,15 +42,15 @@ function installPublicTop50(app, watch) {
             wake();
         }
         try {
-            for (const metric of ["Money", "Time"]) {
+            for (const metric of ["Money", "Time", "Support"]) {
                 const off = watch(metric, entries => {
                     if (subscription !== group) return;
                     group.data[metric] = rowsFor(entries);
-                    const { Money, Time } = group.data;
-                    if (!Money || !Time) return;
-                    const version = createHash("sha256").update(JSON.stringify([Money, Time])).digest("hex");
+                    const { Money, Time, Support } = group.data;
+                    if (!Money || !Time || !Support) return;
+                    const version = createHash("sha256").update(JSON.stringify([Money, Time, Support])).digest("hex");
                     if (ready?.version === version) return;
-                    ready = { version, Money, Time };
+                    ready = { version, Money, Time, Support };
                     failures = 0;
                     wake();
                 }, unavailable);

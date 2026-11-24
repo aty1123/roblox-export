@@ -21,7 +21,11 @@ admin.initializeApp({
 
 const db = admin.database();
 const { installPublicTop50, watchRealtimeDatabase } = require("./cheolsan-public-top50.cjs");
-installPublicTop50(app, watchRealtimeDatabase(db.ref("users"), { Money: "money", Time: "playtime" }));
+const { installDonations } = require("./donations.cjs");
+const watchSupport = installDonations(app, db);
+const watchStats = watchRealtimeDatabase(db.ref("users"), { Money: "money", Time: "playtime" });
+installPublicTop50(app, (metric, publish, fail) => metric === "Support"
+  ? watchSupport(publish, fail) : watchStats(metric, publish, fail));
 
 // ✅ 기본 상태 확인 라우트
 app.get("/", (req, res) => {

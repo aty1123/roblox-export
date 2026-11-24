@@ -175,10 +175,78 @@
         });
     }
 
+    function bindDonations() {
+      const panel = document.getElementById("donation-monitor");
+      const ranks = document.getElementById("donation-ranks");
+      const status = document.getElementById("donation-status");
+      const user = document.getElementById("donation-user");
+      const output = document.getElementById("donation-result");
+      let controller, version, timer, lookupId = 0;
+      async function lookup() {
+        const id = user.value.trim(), serial = ++lookupId;
+        const recent = document.getElementById("donation-recent");
+        recent.replaceChildren();
+        if (!/^[1-9]\d{0,15}$/.test(id)) { output.textContent = "숫자 User ID를 입력하세요."; return; }
+        try {
+          const result = await fetch("/admin/donations/" + id, { headers: { Authorization: "Bearer " + currentPassword } });
+          if (!result.ok) throw new Error();
+          const d = await result.json();
+          if (serial !== lookupId || user.value.trim() !== id) return;
+          output.textContent = id + " · 누적 " + d.total.toLocaleString() + " R$ · " + d.count.toLocaleString() +
+            "회" + (d.last ? " · 최근 " + d.last.amount + " R$ · 상품 " + d.last.productId + " · " + new Date(d.last.at).toLocaleString("ko-KR") : "");
+          recent.replaceChildren(...d.recent.map(event => {
+            const row = document.createElement("li");
+            row.textContent = new Date(event.at).toLocaleString("ko-KR") + " · " + event.amount + " R$ · 상품 " + event.productId + " · 영수증 " + event.id;
+            return row;
+          }));
+        } catch { if (serial === lookupId) output.textContent = "조회 실패 · 로그인을 확인한 뒤 다시 시도하세요."; }
+      }
+      async function poll() {
+        if (!panel.open || !panel.isConnected || document.hidden) return;
+        const active = new AbortController();
+        controller = active;
+        let delay = 1000;
+        try {
+          const res = await fetch("/public/rankings/top50" + (version ? "?wait=1&since=" + version : ""), { signal: active.signal });
+          if (res.status !== 204) {
+            if (!res.ok) throw new Error();
+            const feed = await res.json();
+            if (!Array.isArray(feed.Support)) throw new Error();
+            version = feed.version;
+            ranks.replaceChildren(...feed.Support.map(({ id, value }) => {
+              const entry = document.createElement("li"), select = document.createElement("button");
+              const name = allData.find(row => String(row.id) === String(id))?.username;
+              select.type = "button"; select.textContent = (name || id) + " · " + value.toLocaleString() + " R$";
+              select.onclick = () => { user.value = String(id); lookup(); };
+              entry.append(select); return entry;
+            }));
+          }
+          status.textContent = ranks.children.length ? "실시간 후원 TOP 50" : "첫 후원 영수증을 기다리고 있습니다.";
+        } catch { if (!active.signal.aborted) { status.textContent = "재연결 중 · 마지막 순위를 표시합니다."; delay = 5000; } }
+        if (controller === active && !active.signal.aborted) timer = setTimeout(poll, delay);
+      }
+      function sync() {
+        controller?.abort(); clearTimeout(timer);
+        if (panel.open && !document.hidden) poll();
+      }
+      panel.ontoggle = sync;
+      document.addEventListener("visibilitychange", sync);
+      document.getElementById("donation-lookup").onclick = lookup;
+    }
+
     function renderDashboard() {
       const container = document.getElementById("main");
       container.innerHTML = `
         <h1>IronMountain 유저 데이터베이스</h1>
+        <details id="donation-monitor" style="margin: 1em 0">
+          <summary>로벅스 후원 관제</summary>
+          <p id="donation-status" role="status"></p>
+          <ol id="donation-ranks"></ol>
+          <label>User ID <input id="donation-user" inputmode="numeric"></label>
+          <button id="donation-lookup" type="button">후원 내역 조회</button>
+          <p id="donation-result" aria-live="polite"></p>
+          <ol id="donation-recent"></ol>
+        </details>
         <div class="controls">
           <input type="text" id="search" placeholder="User ID 또는 Username 검색" />
           <select id="perPage">
@@ -207,6 +275,7 @@
         </div>
       `;
 
+      bindDonations();
       document.getElementById("perPage").value = rowsPerPage;
       document.getElementById("perPage").addEventListener("change", e => {
         rowsPerPage = +e.target.value;
@@ -232,15 +301,13 @@
       const pageData = filtered.slice(start, end);
 
       const tbody = document.getElementById("rows");
-      tbody.innerHTML = pageData.map(u => `
-        <tr>
-          <td>${u.id}</td>
-          <td>${u.money ?? 0}</td>
-          <td>${u.playtime ?? 0}</td>
-          <td>${u.username ?? 'Unknown'}</td>
-          <td>${new Date(u.updatedAt).toLocaleString()}</td>
-        </tr>
-      `).join("");
+      tbody.replaceChildren(...pageData.map(u => {
+        const row = document.createElement("tr");
+        for (const value of [u.id, u.money ?? 0, u.playtime ?? 0, u.username ?? "Unknown", new Date(u.updatedAt).toLocaleString()]) {
+          row.insertCell().textContent = String(value);
+        }
+        return row;
+      }));
 
       const pageInfo = document.getElementById("pageInfo");
       const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
